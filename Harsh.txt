@@ -1,0 +1,77 @@
+# Step 1: Import Libraries
+import pandas as pd, numpy as np
+import matplotlib.pyplot as plt, seaborn as sns
+from sklearn.model_selection import train_test_split, KFold, cross_val_score, GridSearchCV
+from sklearn.preprocessing import StandardScaler
+from sklearn.tree import DecisionTreeClassifier
+from sklearn.ensemble import RandomForestClassifier
+from sklearn.metrics import classification_report, confusion_matrix, accuracy_score
+import warnings; warnings.filterwarnings("ignore")
+
+# Step 2: Load Data
+df = pd.read_csv("sleep_quality_dataset.csv")
+display(df.head())
+
+# Step 3: Split Features & Target
+X, y = df.drop("Sleep_Quality", axis=1), df["Sleep_Quality"]
+X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.25, random_state=42)
+
+# Step 4: Scaling
+scaler = StandardScaler()
+X_train_s, X_test_s = scaler.fit_transform(X_train), scaler.transform(X_test)
+
+# Step 5: Models
+models = {
+    "Decision Tree": DecisionTreeClassifier(random_state=42),
+    "Random Forest": RandomForestClassifier(random_state=42)
+}
+
+results = []
+for name, model in models.items():
+    model.fit(X_train_s, y_train)
+    pred = model.predict(X_test_s)
+    acc = accuracy_score(y_test, pred)
+    results.append([name, acc])
+    
+    print(f"\n{name} Accuracy: {acc:.2%}")
+    print("\nConfusion Matrix:\n", confusion_matrix(y_test, pred))
+    print("\nClassification Report:\n", classification_report(y_test, pred))
+
+# Step 6: Accuracy Comparison Table
+result_df = pd.DataFrame(results, columns=["Model", "Accuracy"])
+display(result_df)
+
+# Step 7: K-Fold Cross Validation (Random Forest)
+cv = KFold(n_splits=5, shuffle=True, random_state=42)
+cv_scores = cross_val_score(models["Random Forest"], X, y, cv=cv)
+print(f"\nAvg CV Accuracy (RF): {cv_scores.mean():.3f}")
+
+# Step 8: Grid Search
+param_grid = {
+    'n_estimators': [50, 100, 150],
+    'max_depth': [3, 5, 7, None],
+    'min_samples_split': [2, 5, 10]
+}
+grid = GridSearchCV(RandomForestClassifier(random_state=42), param_grid, cv=3)
+grid.fit(X_train_s, y_train)
+print("\nBest Params:", grid.best_params_)
+print("Best CV Accuracy:", round(grid.best_score_, 3))
+
+# Step 9: New Sample Prediction
+sample = [[2, 5, 6, 1.5, 7]]
+sample_s = scaler.transform(sample)
+
+pred = models["Random Forest"].predict(sample_s)[0]
+prob = models["Random Forest"].predict_proba(sample_s)[0][1]
+print(f"\nPrediction: {'Good Sleep' if pred==1 else 'Poor Sleep'} ({prob:.2%} good sleep probability)")
+
+# Step 10: Visualizations
+plt.figure(figsize=(7,5))
+sns.heatmap(df.corr(), annot=True, cmap="coolwarm")
+plt.title("Correlation Heatmap")
+plt.show()
+
+plt.bar(result_df["Model"], result_df["Accuracy"]*100)
+plt.title("Model Accuracy Comparison")
+plt.ylabel("Accuracy (%)")
+plt.show()
